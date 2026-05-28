@@ -1,0 +1,160 @@
+{
+  "name": "hermes-agent",
+  "displayName": "Hermes Agent",
+  "description": "Autonomous AI coding agent with chat, kanban task management, and native editor integration via ACP.",
+  "version": "1.0.0",
+  "publisher": "qualixar",
+  "license": "MIT",
+  "icon": "media/icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qualixar/hermes-agent.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "agent",
+    "hermes",
+    "coding",
+    "assistant",
+    "llm",
+    "acp",
+    "kanban",
+    "qualixar"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hermes.connect",
+        "title": "Hermes: Connect",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "hermes.disconnect",
+        "title": "Hermes: Disconnect",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "hermes.chat",
+        "title": "Hermes: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "hermes.createTask",
+        "title": "Hermes: Create Task",
+        "icon": "$(add)"
+      },
+      {
+        "command": "hermes.swarm",
+        "title": "Hermes: New Swarm",
+        "icon": "$(organization)"
+      },
+      {
+        "command": "hermes.dispatch",
+        "title": "Hermes: Dispatch Tasks",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "hermes.refresh",
+        "title": "Hermes: Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hermes-sidebar",
+          "title": "Hermes",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "hermes-sidebar": [
+        {
+          "id": "hermes-chat",
+          "name": "Chat",
+          "type": "webview"
+        },
+        {
+          "id": "hermes-kanban",
+          "name": "Kanban",
+          "type": "tree"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "hermes.refresh",
+          "when": "view == hermes-kanban",
+          "group": "navigation"
+        },
+        {
+          "command": "hermes.createTask",
+          "when": "view == hermes-kanban",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "hermes.createTask",
+          "group": "hermes",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Hermes",
+      "properties": {
+        "hermes.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8642",
+          "description": "Hermes API server URL (default: http://localhost:8642)"
+        },
+        "hermes.autoConnect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically connect to Hermes on startup"
+        },
+        "hermes.acpEnabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable ACP subprocess for native editor integration (file ops, terminal, approvals)"
+        },
+        "hermes.acpPath": {
+          "type": "string",
+          "default": "/Users/varunpratapbhardwaj/.local/bin/hermes",
+          "description": "Path to hermes binary for ACP subprocess"
+        },
+        "hermes.pollIntervalMs": {
+          "type": "number",
+          "default": 5000,
+          "description": "Polling interval in ms for kanban task updates"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./tsconfig.json",
+    "watch": "tsc -watch -p ./tsconfig.json",
+    "package": "npx @vscode/vsce package"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}

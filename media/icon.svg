@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Winged sandal / caduceus-inspired Hermes icon -->
+  <g stroke="#888" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Wings -->
+    <path d="M32 34 C20 28, 8 30, 4 24 C8 28, 16 26, 32 30" fill="#c0c0c0" stroke="#666"/>
+    <path d="M32 34 C44 28, 56 30, 60 24 C56 28, 48 26, 32 30" fill="#c0c0c0" stroke="#666"/>
+    <path d="M32 34 C22 30, 12 34, 6 30 C12 34, 22 30, 32 34" fill="#c0c0c0" stroke="#666"/>
+    <path d="M32 34 C42 30, 52 34, 58 30 C52 34, 42 30, 32 34" fill="#c0c0c0" stroke="#666"/>
+    <!-- Caduceus staff -->
+    <line x1="32" y1="14" x2="32" y2="50" stroke="#888"/>
+    <!-- Serpent heads -->
+    <path d="M20 26 C18 20, 22 16, 28 18" stroke="#4caf50" fill="none"/>
+    <path d="M44 26 C46 20, 42 16, 36 18" stroke="#4caf50" fill="none"/>
+    <!-- Serpent bodies -->
+    <path d="M20 26 C16 32, 20 38, 28 34" stroke="#4caf50" fill="none"/>
+    <path d="M44 26 C48 32, 44 38, 36 34" stroke="#4caf50" fill="none"/>
+    <!-- Sparkle dots -->
+    <circle cx="30" cy="10" r="1.5" fill="#ffd700" stroke="none"/>
+    <circle cx="38" cy="12" r="1" fill="#ffd700" stroke="none"/>
+    <circle cx="34" cy="8" r="1" fill="#ffd700" stroke="none"/>
+  </g>
+</svg>
