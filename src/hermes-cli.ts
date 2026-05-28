@@ -73,6 +73,16 @@ export async function sessionList(): Promise<{ stdout: string }> {
   return { stdout: r.stdout || r.stderr || 'No sessions.' };
 }
 
+export async function sessionExport(sessionId: string): Promise<string> {
+  const r = await run(['sessions', 'export', '--session-id', sessionId, '-'], { timeout: 15000 });
+  return r.stdout || r.stderr || '';
+}
+
+export async function sessionNew(name: string): Promise<{ stdout: string }> {
+  const r = await run(['sessions', 'rename', name, name]); // sessions rename <old> <new>
+  return { stdout: r.stdout || r.stderr || 'Session created.' };
+}
+
 // ── Kanban ──
 export async function kanbanList(): Promise<string> {
   const r = await run(['kanban', 'list'], { timeout: 10000 });

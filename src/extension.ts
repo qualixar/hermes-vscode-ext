@@ -133,9 +133,11 @@ function registerCmds(
   reg('hermes.addMcpServer', async () => {
     const name = await vscode.window.showInputBox({ prompt: 'MCP server name' });
     if (!name) return;
-    const url = await vscode.window.showInputBox({ prompt: 'URL (leave blank for stdio)' });
-    await cli.run(['mcp', 'add', name, ...(url ? ['--url', url] : [])]);
-    vscode.window.showInformationMessage('Added.');
+    const url = await vscode.window.showInputBox({ prompt: 'URL (or leave blank)' });
+    const args = ['mcp', 'add', name];
+    if (url) args.push('--url', url);
+    const r = await cli.run(args);
+    vscode.window.showInformationMessage(r.stdout || r.stderr || 'Added.');
   });
   reg('hermes.skillsList', async () => { const r = await cli.skillsList(); show(r.stdout); });
   reg('hermes.agentRun', async () => {
@@ -243,13 +245,44 @@ function registerCmds(
   reg('hermes.disconnect', () => { sb.setDisconnected(); panel.setConnected(false); kanban.stopPolling(); });
   reg('hermes.switchSession', async (id?: string) => {
     if (!id) return;
-    await cli.run(['session', 'resume', id]);
+    const text = await cli.sessionExport(id);
+    try {
+      const session = JSON.parse(text);
+      const messages = (session?.messages || [])
+        .filter((m: any) => (m.role === 'user' || m.role === 'assistant') && m.content)
+        .map((m: any) => ({
+          role: m.role,
+          content: typeof m.content === 'string' ? m.content : extractMessageText(m.content),
+        }))
+        .filter((m: any) => m.content);
+      panel.clearChat();
+      if (messages.length > 0) {
+        panel.loadHistory(messages);
+      }
+      vscode.window.showInformationMessage('Loaded session: ' + id + ' (' + messages.length + ' messages)');
+    } catch {
+      vscode.window.showErrorMessage('Failed to load session history for: ' + id);
+    }
     sessions.refresh();
-    vscode.window.showInformationMessage('Switched to session: ' + id);
   });
 }
 
-// ── Auto-connect ─────────────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────
+
+function extractMessageText(content: any): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((p: any) => p.type === 'text')
+      .map((p: any) => p.text)
+      .join('\n');
+  }
+  if (typeof content === 'object' && content !== null) {
+    return content.text || content.content || '';
+  }
+  return '';
+}
+
 
 async function autoConnect(
   client: HermesClient, sb: StatusBarManager, panel: SidebarChatProvider,

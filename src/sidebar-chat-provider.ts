@@ -27,6 +27,20 @@ export class SidebarChatProvider implements vscode.WebviewViewProvider {
   }
   reveal(): void { this.view?.show(true); }
   setConnected(ok: boolean): void { this.post({ command: ok ? 'connected' : 'disconnected' }); }
+
+  clearChat(): void {
+    this.history = [];
+    this.post({ command: 'clearChat' });
+  }
+
+  loadHistory(messages: { role: string; content: string }[]): void {
+    this.history = messages.map((m) => ({
+      role: m.role as 'user' | 'assistant',
+      content: m.content,
+    }));
+    this.post({ command: 'loadHistory', messages });
+  }
+
   private post(d: Record<string, unknown>): void { this.view?.webview.postMessage(d); }
 
   private async handle(m: Record<string, any>): Promise<void> {
@@ -56,7 +70,18 @@ export class SidebarChatProvider implements vscode.WebviewViewProvider {
 
     // MCP
     if (c === 'mcpLoad') { await this.loadMcp(); return; }
-    if (c === 'mcpAdd') { vscode.commands.executeCommand('hermes.addMcpServer'); return; }
+    if (c === 'mcpAdd') {
+      const name = (m.name || '').trim();
+      const url = (m.url || '').trim();
+      if (!name) { this.post({ command: 'mcpResult', text: 'Please enter a server name.' }); return; }
+      const args = ['mcp', 'add', name];
+      if (url) args.push('--url', url);
+      try {
+        const r = await cli.run(args);
+        this.post({ command: 'mcpResult', text: (r.stdout || r.stderr || 'Added.') + '\n\nRefresh to see updated list.' });
+      } catch (e: any) { this.post({ command: 'mcpResult', text: 'Error: ' + (e.message || e) }); }
+      return;
+    }
 
     // Skills
     if (c === 'skillsLoad') { await this.loadSkills(); return; }
