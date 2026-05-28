@@ -1,147 +1,92 @@
 {
   "name": "hermes-agent",
   "displayName": "Hermes Agent",
-  "description": "Autonomous AI coding agent with chat, kanban task management, and native editor integration via ACP.",
-  "version": "1.0.0",
+  "description": "Full Hermes Agent control surface: streaming chat, kanban, sessions, config editor, gateway, cron, MCP inspector, skills, media generation, model selector. ACP native editor integration.",
+  "version": "0.4.0",
   "publisher": "qualixar",
   "license": "MIT",
-  "icon": "media/icon.svg",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/qualixar/hermes-agent.git"
-  },
-  "engines": {
-    "vscode": "^1.85.0"
-  },
-  "categories": [
-    "Machine Learning",
-    "Other"
-  ],
-  "keywords": [
-    "ai",
-    "agent",
-    "hermes",
-    "coding",
-    "assistant",
-    "llm",
-    "acp",
-    "kanban",
-    "qualixar"
-  ],
-  "activationEvents": [
-    "onStartupFinished"
-  ],
+  "icon": "media/icon.png",
+  "repository": { "type": "git", "url": "https://github.com/qualixar/hermes-vscode-ext.git" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Machine Learning", "Other"],
+  "keywords": ["ai","agent","hermes","coding","assistant","llm","acp","kanban","qualixar","streaming"],
+  "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-      {
-        "command": "hermes.connect",
-        "title": "Hermes: Connect",
-        "icon": "$(plug)"
-      },
-      {
-        "command": "hermes.disconnect",
-        "title": "Hermes: Disconnect",
-        "icon": "$(debug-disconnect)"
-      },
-      {
-        "command": "hermes.chat",
-        "title": "Hermes: Open Chat",
-        "icon": "$(comment-discussion)"
-      },
-      {
-        "command": "hermes.createTask",
-        "title": "Hermes: Create Task",
-        "icon": "$(add)"
-      },
-      {
-        "command": "hermes.swarm",
-        "title": "Hermes: New Swarm",
-        "icon": "$(organization)"
-      },
-      {
-        "command": "hermes.dispatch",
-        "title": "Hermes: Dispatch Tasks",
-        "icon": "$(arrow-right)"
-      },
-      {
-        "command": "hermes.refresh",
-        "title": "Hermes: Refresh",
-        "icon": "$(refresh)"
-      }
+      { "command": "hermes.focus", "title": "Hermes: Focus Panel", "icon": "$(comment)" },
+      { "command": "hermes.showOutput", "title": "Hermes: Show CLI Output", "icon": "$(output)" },
+      { "command": "hermes.connect", "title": "Hermes: Connect", "icon": "$(plug)" },
+      { "command": "hermes.disconnect", "title": "Hermes: Disconnect", "icon": "$(debug-disconnect)" },
+      { "command": "hermes.listModels", "title": "Hermes: List Available Models", "icon": "$(symbol-class)" },
+      { "command": "hermes.showConfig", "title": "Hermes: View Config", "icon": "$(settings-gear)" },
+      { "command": "hermes.editConfig", "title": "Hermes: Edit Config Key", "icon": "$(edit)" },
+      { "command": "hermes.gatewayStatus", "title": "Hermes: Gateway Status", "icon": "$(server)" },
+      { "command": "hermes.gatewayRestart", "title": "Hermes: Restart Gateway", "icon": "$(debug-restart)" },
+      { "command": "hermes.proxyStatus", "title": "Hermes: Proxy Status", "icon": "$(remote)" },
+      { "command": "hermes.proxyProviders", "title": "Hermes: Proxy Providers", "icon": "$(globe)" },
+      { "command": "hermes.cronList", "title": "Hermes: List Cron Jobs", "icon": "$(watch)" },
+      { "command": "hermes.cronCreate", "title": "Hermes: Create Cron Job", "icon": "$(calendar)" },
+      { "command": "hermes.cronRemove", "title": "Hermes: Remove Cron Job", "icon": "$(trash)" },
+      { "command": "hermes.inspectMcp", "title": "Hermes: Inspect MCP Servers", "icon": "$(extensions)" },
+      { "command": "hermes.addMcpServer", "title": "Hermes: Add MCP Server", "icon": "$(add)" },
+      { "command": "hermes.skillsList", "title": "Hermes: List Skills", "icon": "$(book)" },
+      { "command": "hermes.agentRun", "title": "Hermes: Run Agent (Headless)", "icon": "$(run)" },
+      { "command": "hermes.hermesStatus", "title": "Hermes: Full Status", "icon": "$(dashboard)" },
+      { "command": "hermes.generateImage", "title": "Hermes: Generate Image", "icon": "$(image)" },
+      { "command": "hermes.generateVideo", "title": "Hermes: Generate Video", "icon": "$(device-camera-video)" },
+      { "command": "hermes.analyzeImage", "title": "Hermes: Analyze Image", "icon": "$(eye)" },
+      { "command": "hermes.createTask", "title": "Hermes: Create Kanban Task", "icon": "$(add)" },
+      { "command": "hermes.showTask", "title": "Hermes: Show Task", "icon": "$(eye)" },
+      { "command": "hermes.completeTask", "title": "Hermes: Complete Task", "icon": "$(check)" },
+      { "command": "hermes.commentTask", "title": "Hermes: Add Comment", "icon": "$(comment)" },
+      { "command": "hermes.decomposeTask", "title": "Hermes: Decompose Task", "icon": "$(split-horizontal)" },
+      { "command": "hermes.swarm", "title": "Hermes: New Swarm", "icon": "$(organization)" },
+      { "command": "hermes.dispatch", "title": "Hermes: Dispatch Tasks", "icon": "$(arrow-right)" },
+      { "command": "hermes.kanbanStats", "title": "Hermes: Board Stats", "icon": "$(graph)" },
+      { "command": "hermes.kanbanAssignees", "title": "Hermes: Assignees", "icon": "$(person)" },
+      { "command": "hermes.kanbanBoards", "title": "Hermes: List Boards", "icon": "$(files)" }
     ],
     "viewsContainers": {
-      "activitybar": [
-        {
-          "id": "hermes-sidebar",
-          "title": "Hermes",
-          "icon": "media/icon.svg"
-        }
-      ]
+      "activitybar": [{ "id": "hermes-sidebar", "title": "Hermes", "icon": "media/icon.svg" }]
     },
     "views": {
       "hermes-sidebar": [
-        {
-          "id": "hermes-chat",
-          "name": "Chat",
-          "type": "webview"
-        },
-        {
-          "id": "hermes-kanban",
-          "name": "Kanban",
-          "type": "tree"
-        }
+        { "id": "hermes-panel", "name": "Hermes", "type": "webview" },
+        { "id": "hermes-kanban", "name": "Kanban", "type": "tree" },
+        { "id": "hermes-sessions", "name": "Sessions", "type": "tree" }
       ]
     },
     "menus": {
       "view/title": [
-        {
-          "command": "hermes.refresh",
-          "when": "view == hermes-kanban",
-          "group": "navigation"
-        },
-        {
-          "command": "hermes.createTask",
-          "when": "view == hermes-kanban",
-          "group": "navigation"
-        }
+        { "command": "hermes.createTask", "when": "view == hermes-kanban", "group": "navigation" },
+        { "command": "hermes.dispatch", "when": "view == hermes-kanban", "group": "navigation@1" },
+        { "command": "hermes.kanbanBoards", "when": "view == hermes-kanban", "group": "navigation@2" },
+        { "command": "hermes.kanbanStats", "when": "view == hermes-kanban", "group": "navigation@3" }
+      ],
+      "commandPalette": [
+        { "command": "hermes.showTask", "when": "false" },
+        { "command": "hermes.completeTask", "when": "false" },
+        { "command": "hermes.commentTask", "when": "false" },
+        { "command": "hermes.decomposeTask", "when": "false" }
+      ],
+      "view/item/context": [
+        { "command": "hermes.showTask", "when": "view == hermes-kanban && viewItem =~ /kanban-task/", "group": "hermes@1" },
+        { "command": "hermes.completeTask", "when": "view == hermes-kanban && viewItem =~ /kanban-task-(todo|doing)/", "group": "hermes@2" },
+        { "command": "hermes.commentTask", "when": "view == hermes-kanban && viewItem =~ /kanban-task/", "group": "hermes@3" },
+        { "command": "hermes.decomposeTask", "when": "view == hermes-kanban && viewItem =~ /kanban-task/", "group": "hermes@4" }
       ],
       "editor/context": [
-        {
-          "command": "hermes.createTask",
-          "group": "hermes",
-          "when": "editorHasSelection"
-        }
+        { "command": "hermes.createTask", "group": "hermes", "when": "editorHasSelection" }
       ]
     },
     "configuration": {
       "title": "Hermes",
       "properties": {
-        "hermes.apiUrl": {
-          "type": "string",
-          "default": "http://localhost:8642",
-          "description": "Hermes API server URL (default: http://localhost:8642)"
-        },
-        "hermes.autoConnect": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically connect to Hermes on startup"
-        },
-        "hermes.acpEnabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable ACP subprocess for native editor integration (file ops, terminal, approvals)"
-        },
-        "hermes.acpPath": {
-          "type": "string",
-          "default": "/Users/varunpratapbhardwaj/.local/bin/hermes",
-          "description": "Path to hermes binary for ACP subprocess"
-        },
-        "hermes.pollIntervalMs": {
-          "type": "number",
-          "default": 5000,
-          "description": "Polling interval in ms for kanban task updates"
-        }
+        "hermes.apiUrl": { "type": "string", "default": "http://localhost:8642", "description": "Hermes API server URL" },
+        "hermes.autoConnect": { "type": "boolean", "default": true, "description": "Auto-connect on startup" },
+        "hermes.acpEnabled": { "type": "boolean", "default": true, "description": "Enable ACP subprocess for native editor integration" },
+        "hermes.acpPath": { "type": "string", "default": "/Users/varunpratapbhardwaj/.local/bin/hermes", "description": "Path to hermes binary" }
       }
     }
   },

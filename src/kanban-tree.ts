@@ -1,205 +1,90 @@
-/**
- * Hermes VS Code Extension — Kanban Tree View
- *
- * TreeDataProvider showing kanban tasks grouped by status.
- * Runs `hermes kanban list` via CLI periodically.
- */
-
 import * as vscode from 'vscode';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import type { KanbanStatus } from './hermes-types';
+import * as cli from './hermes-cli';
 
-const exec = promisify(execFile);
+type KStatus = 'todo' | 'doing' | 'done' | 'failed' | 'cancelled';
 
-interface ParsedTask {
-  task_id: string;
-  title: string;
-  status: KanbanStatus;
-  type: string;
-}
+interface PT { task_id: string; title: string; status: KStatus; type: string; }
 
-type KanbanNode = StatusGroupNode | TaskNode;
+const LABELS: Record<KStatus, string> = { todo: '▶ Todo', doing: '🔄 Doing', done: '✅ Done', failed: '❌ Failed', cancelled: '⏹ Cancelled' };
+const ICONS: Record<KStatus, string> = { todo: 'circle-outline', doing: 'sync~spin', done: 'check', failed: 'error', cancelled: 'circle-slash' };
 
-class StatusGroupNode extends vscode.TreeItem {
-  constructor(
-    public readonly status: KanbanStatus,
-    public readonly count: number,
-    collapsibleState: vscode.TreeItemCollapsibleState,
-  ) {
-    super(statusLabel(status), collapsibleState);
-    this.contextValue = 'kanban-status';
-    this.iconPath = statusIcon(status);
+class SNode extends vscode.TreeItem {
+  constructor(readonly key: KStatus, n: number) {
+    super(LABELS[key], vscode.TreeItemCollapsibleState.Expanded);
+    this.iconPath = new vscode.ThemeIcon(ICONS[key]); this.description = String(n);
   }
 }
 
-class TaskNode extends vscode.TreeItem {
-  constructor(public readonly task: ParsedTask) {
+class TNode extends vscode.TreeItem {
+  constructor(readonly task: PT) {
     super(task.title, vscode.TreeItemCollapsibleState.None);
-    this.contextValue = `kanban-task-${task.status}`;
-    this.tooltip = `${task.task_id}\nStatus: ${task.status}\nType: ${task.type}`;
+    this.contextValue = 'kanban-task-' + task.status;
     this.description = task.type;
   }
 }
 
-function statusLabel(status: KanbanStatus): string {
-  const labels: Record<KanbanStatus, string> = {
-    todo: '▶️ Todo',
-    doing: '🔄 Doing',
-    done: '✅ Done',
-    failed: '❌ Failed',
-    cancelled: '⏹️ Cancelled',
-  };
-  return labels[status] || status;
-}
+type Node = SNode | TNode;
 
-function statusIcon(status: KanbanStatus): vscode.ThemeIcon {
-  const icons: Record<KanbanStatus, string> = {
-    todo: 'circle-outline',
-    doing: 'sync~spin',
-    done: 'check',
-    failed: 'error',
-    cancelled: 'circle-slash',
-  };
-  return new vscode.ThemeIcon(icons[status] || 'circle-outline');
-}
+export class KanbanTreeProvider implements vscode.TreeDataProvider<Node>, vscode.Disposable {
+  private _ev = new vscode.EventEmitter<Node | undefined>();
+  readonly onDidChangeTreeData = this._ev.event;
+  private t: ReturnType<typeof setInterval> | undefined;
 
-// ── Provider ─────────────────────────────────────────────────
+  startPolling(ms = 5000): void { this.stopPolling(); this.t = setInterval(() => this.refresh(), ms); }
+  stopPolling(): void { if (this.t) { clearInterval(this.t); this.t = undefined; } }
+  refresh(): void { this._ev.fire(undefined); }
+  dispose(): void { this.stopPolling(); this._ev.dispose(); }
+  getTreeItem(el: Node): vscode.TreeItem { return el; }
 
-export class KanbanTreeProvider
-  implements vscode.TreeDataProvider<KanbanNode>, vscode.Disposable
-{
-  private _onDidChangeTreeData = new vscode.EventEmitter<KanbanNode | undefined>();
-  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
-
-  private pollTimer: ReturnType<typeof setInterval> | undefined;
-  private hermesBin: string;
-
-  constructor(hermesBin: string = '/Users/varunpratapbhardwaj/.local/bin/hermes') {
-    this.hermesBin = hermesBin;
-  }
-
-  setHermesBin(path: string): void {
-    this.hermesBin = path;
-  }
-
-  startPolling(intervalMs: number = 5000): void {
-    this.stopPolling();
-    this.pollTimer = setInterval(() => this.refresh(), intervalMs);
-  }
-
-  stopPolling(): void {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = undefined;
+  async getChildren(el?: Node): Promise<Node[]> {
+    if (el instanceof SNode) {
+      const tasks = await this.fetch();
+      return tasks.filter(t => t.status === el.key).map(t => new TNode(t));
     }
+    if (el instanceof TNode) return [];
+    const tasks = await this.fetch();
+    const g = new Map<KStatus, PT[]>();
+    for (const t of tasks) { const a = g.get(t.status) || []; a.push(t); g.set(t.status, a); }
+    return (['doing', 'todo', 'failed', 'cancelled', 'done'] as KStatus[])
+      .filter(s => g.has(s)).map(s => new SNode(s, g.get(s)!.length));
   }
 
-  refresh(): void {
-    this._onDidChangeTreeData.fire(undefined);
-  }
-
-  dispose(): void {
-    this.stopPolling();
-    this._onDidChangeTreeData.dispose();
-  }
-
-  // ── TreeDataProvider ──────────────────────────────────────
-
-  getTreeItem(element: KanbanNode): vscode.TreeItem {
-    return element;
-  }
-
-  async getChildren(element?: KanbanNode): Promise<KanbanNode[]> {
-    if (element) {
-      if (element instanceof StatusGroupNode) {
-        const tasks = await this.fetchTasks();
-        return tasks
-          .filter((t) => t.status === element.status)
-          .map((t) => new TaskNode(t));
-      }
-      return [];
-    }
-
-    // Root: status groups
-    const tasks = await this.fetchTasks();
-    const grouped = groupByStatus(tasks);
-    const order: KanbanStatus[] = ['doing', 'todo', 'failed', 'cancelled', 'done'];
-
-    return order
-      .filter((s) => grouped.has(s))
-      .map((s) => {
-        const items = grouped.get(s)!;
-        return new StatusGroupNode(
-          s,
-          items.length,
-          vscode.TreeItemCollapsibleState.Expanded,
-        );
-      });
-  }
-
-  // ── CLI integration ───────────────────────────────────────
-
-  private async fetchTasks(): Promise<ParsedTask[]> {
+  private async fetch(): Promise<PT[]> {
     try {
-      const { stdout } = await exec(this.hermesBin, ['kanban', 'list'], {
-        timeout: 10000,
-      });
-      return parseKanbanList(stdout);
-    } catch {
-      return [];
-    }
+      const raw = await cli.kanbanList();
+      return parseKanban(raw);
+    } catch { return []; }
   }
 }
 
-// ── CLI output parser ───────────────────────────────────────
+// ── Parser for actual hermes kanban list output ──
+// Format: ▶ t_<id>  <status>  (assignee or (unassigned))  <title>
+// Example: ▶ t_fc5291ed  ready     (unassigned)          hello
 
-function parseKanbanList(output: string): ParsedTask[] {
-  const tasks: ParsedTask[] = [];
+function parseKanban(output: string): PT[] {
+  const tasks: PT[] = [];
   const lines = output.split('\n');
 
   for (const line of lines) {
-    // "todo" or "doing" status lines start without a number
-    const match = line.match(
-      /^(\d+)\s+([a-f0-9]{18})\s+(.+?)\s+(\d{4}-\d{2}-\d{2}T.+?)(?:\s+(\S+))?$/,
-    );
-    if (!match) {
-      continue;
-    }
+    // Match: ▶ t_<id>  <status-word>  (...)  <title>
+    const m = line.match(/^[▶▷◀◁]?\s*t_([a-f0-9]+)\s+(\S+)\s+\((\S+)\)\s+(.+)$/);
+    if (!m) continue;
+
+    const rawStatus = m[2].toLowerCase();
+    let status: KStatus;
+    if (rawStatus === 'doing' || rawStatus === 'in_progress') status = 'doing';
+    else if (rawStatus === 'done' || rawStatus === 'completed') status = 'done';
+    else if (rawStatus === 'failed' || rawStatus === 'error') status = 'failed';
+    else if (rawStatus === 'cancelled') status = 'cancelled';
+    else status = 'todo';
+
     tasks.push({
-      task_id: match[2],
-      title: match[3].trim(),
-      status: inferStatus(line, match[2]),
-      type: match[5] || 'unknown',
+      task_id: 't_' + m[1],
+      title: m[4].trim(),
+      status,
+      type: m[3] === 'unassigned' ? '' : m[3],
     });
   }
 
   return tasks;
-}
-
-function inferStatus(line: string, taskId: string): KanbanStatus {
-  // Best-effort: kanban list output varies. Fall back to text parsing.
-  if (line.includes('[done]') || line.includes('(done)')) {
-    return 'done';
-  }
-  if (line.includes('[doing]') || line.includes('(doing)')) {
-    return 'doing';
-  }
-  if (line.includes('[failed]') || line.includes('(failed)')) {
-    return 'failed';
-  }
-  if (line.includes('[cancelled]') || line.includes('(cancelled)')) {
-    return 'cancelled';
-  }
-  return 'todo';
-}
-
-function groupByStatus(tasks: ParsedTask[]): Map<KanbanStatus, ParsedTask[]> {
-  const map = new Map<KanbanStatus, ParsedTask[]>();
-  for (const t of tasks) {
-    const list = map.get(t.status) || [];
-    list.push(t);
-    map.set(t.status, list);
-  }
-  return map;
 }

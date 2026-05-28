@@ -1,102 +1,85 @@
-/**
- * Hermes VS Code Extension — HTTP Client for Hermes API (port 8642)
- *
- * Talks to Hermes API server:
- *   GET  /health                     — health check
- *   POST /v1/chat/completions        — chat (OpenAI-compatible)
- *   hermes kanban *                  — kanban via CLI
- */
-
 import * as http from 'http';
-import * as vscode from 'vscode';
-import type { ApiResult, HermesHealth, ChatMessage } from './hermes-types';
+import type { ApiResult, ChatMessage } from './hermes-types';
 
 export class HermesClient {
   private baseUrl: string;
+  constructor(baseUrl = 'http://localhost:8642') { this.baseUrl = baseUrl; }
+  setBaseUrl(url: string): void { this.baseUrl = url; }
 
-  constructor(baseUrl: string = 'http://localhost:8642') {
-    this.baseUrl = baseUrl;
+  async health(): Promise<ApiResult<{ status: string; version?: string }>> {
+    return this.get('/health');
   }
 
-  setBaseUrl(url: string): void {
-    this.baseUrl = url;
+  streamChat(
+    message: string, history: ChatMessage[], model: string,
+    onToken: (t: string) => void, onDone: (full: string) => void, onErr: (e: string) => void,
+  ): () => void {
+    const url = new URL('/v1/chat/completions', this.baseUrl);
+    const msgs = [...history, { role: 'user' as const, content: message }];
+    const body = JSON.stringify({ model, messages: msgs, stream: true });
+
+    const req = http.request(url.toString(), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 300000,
+    }, (res) => {
+      let fullText = '';
+      let buf = '';
+      res.on('data', (c: Buffer) => {
+        buf += c.toString();
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          const s = line.trim();
+          if (!s.startsWith('data: ')) continue;
+          const d = s.slice(6);
+          if (d === '[DONE]') continue;
+          try {
+            const j = JSON.parse(d);
+            const tok = j?.choices?.[0]?.delta?.content;
+            if (tok) { fullText += tok; onToken(tok); }
+          } catch {}
+        }
+      });
+      res.on('end', () => onDone(fullText));
+      res.on('error', (e: Error) => onErr(e.message));
+    });
+    req.on('error', (e: Error) => onErr(e.message));
+    req.write(body);
+    req.end();
+    return () => req.destroy();
   }
 
-  // ── Health ────────────────────────────────────────────────────
-
-  async health(): Promise<ApiResult<HermesHealth>> {
-    return this.get<HermesHealth>('/health');
-  }
-
-  // ── Chat ──────────────────────────────────────────────────────
-
-  async chat(message: string, history: ChatMessage[] = []): Promise<ApiResult<string>> {
-    const messages = [...history, { role: 'user' as const, content: message }];
-    const result = await this.post<{ choices?: { message: { content: string } }[] }>(
-      '/v1/chat/completions',
-      { model: 'hermes', messages },
+  async chat(message: string, history: ChatMessage[], model = 'hermes'): Promise<ApiResult<string>> {
+    const r = await this.post<{ choices?: { message: { content: string } }[] }>(
+      '/v1/chat/completions', { model, messages: [...history, { role: 'user', content: message }], stream: false },
     );
-    if (!result.ok) {
-      return result;
-    }
-    const content = result.data?.choices?.[0]?.message?.content;
-    if (content) {
-      return { ok: true, data: content };
-    }
-    return { ok: false, error: 'No response from Hermes' };
+    if (!r.ok) return r;
+    return { ok: true, data: r.data?.choices?.[0]?.message?.content || 'No response' };
   }
 
-  // ── HTTP helpers ──────────────────────────────────────────────
+  listModels(): Promise<ApiResult<{ data?: { id: string }[] }>> {
+    return this.get('/v1/models');
+  }
 
   private get<T>(endpoint: string): Promise<ApiResult<T>> {
-    return new Promise((resolve) => {
-      const url = new URL(endpoint, this.baseUrl);
-      http
-        .get(url.toString(), { timeout: 10000 }, (res) => {
-          let body = '';
-          res.on('data', (chunk: Buffer) => (body += chunk.toString()));
-          res.on('end', () => {
-            try {
-              resolve({ ok: true, data: JSON.parse(body) as T });
-            } catch {
-              resolve({ ok: false, error: `Invalid JSON: ${body.slice(0, 200)}` });
-            }
-          });
-        })
-        .on('error', (e: Error) => {
-          resolve({ ok: false, error: e.message });
-        });
+    return new Promise((res) => {
+      http.get(new URL(endpoint, this.baseUrl).toString(), { timeout: 10000 }, (r) => {
+        let b = ''; r.on('data', (c: Buffer) => b += c.toString());
+        r.on('end', () => { try { res({ ok: true, data: JSON.parse(b) }); } catch { res({ ok: false, error: b.slice(0, 200) }); } });
+      }).on('error', (e: Error) => res({ ok: false, error: e.message }));
     });
   }
 
-  private post<T>(endpoint: string, data: unknown): Promise<ApiResult<T>> {
-    return new Promise((resolve) => {
-      const url = new URL(endpoint, this.baseUrl);
-      const payload = JSON.stringify(data);
-      const req = http.request(
-        url.toString(),
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 120000,
-        },
-        (res) => {
-          let body = '';
-          res.on('data', (chunk: Buffer) => (body += chunk.toString()));
-          res.on('end', () => {
-            try {
-              resolve({ ok: true, data: JSON.parse(body) as T });
-            } catch {
-              resolve({ ok: false, error: `Invalid JSON: ${body.slice(0, 200)}` });
-            }
-          });
-        },
-      );
-      req.on('error', (e: Error) => {
-        resolve({ ok: false, error: e.message });
+  private post<T>(endpoint: string, body: unknown): Promise<ApiResult<T>> {
+    return new Promise((res) => {
+      const p = JSON.stringify(body);
+      const r = http.request(new URL(endpoint, this.baseUrl).toString(), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 120000,
+      }, (rr) => {
+        let b = ''; rr.on('data', (c: Buffer) => b += c.toString());
+        rr.on('end', () => { try { res({ ok: true, data: JSON.parse(b) }); } catch { res({ ok: false, error: b.slice(0, 200) }); } });
       });
-      req.write(payload);
-      req.end();
+      r.on('error', (e: Error) => res({ ok: false, error: e.message }));
+      r.write(p); r.end();
     });
   }
 }
